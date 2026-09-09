@@ -1,0 +1,34 @@
+schema: spec-driven
+
+# Project context for AI assistants and OpenSpec tooling
+context: |
+  Project: Automotive AI Agent (helpMec)
+  Domain: Automotive technical assistant, service manuals RAG, mechanical diagnostics, OBD/DTC lookup.
+  
+  Tech Stack:
+    - Backend: 100% Pure Python 3.11+ (NO C/C++ or native C compilations)
+    - Framework: FastAPI (async/await)
+    - Validation: Pydantic v2 & Pydantic-Settings
+    - Relational DB: PostgreSQL 16 via asyncpg & SQLAlchemy 2.0
+    - Vector DB: Qdrant
+    - Testing: pytest, pytest-asyncio, httpx
+    - Containerization: Podman (Windows / Linux) & Docker
+  
+  Architecture & Quality Rules:
+    - ALL services, tools, workers, and logic MUST be written in Python.
+    - Zero hallucination policy on technical specs, torques, and manufacturer procedures.
+    - Every technical answer must cite its source (manual, chapter, page).
+    - Differentiate verified manual facts from diagnostic hypotheses.
+    - Spec-Driven Development: all changes, capabilities, and requirements must strictly adhere to OpenSpec standard.
+
+# Per-artifact rules
+rules:
+  proposal:
+    - Clearly define "Why", "What Changes", "Capabilities", and "Impact".
+    - Highlight zero-hallucination automotive constraints.
+  specs:
+    - "Follow OpenSpec schema: Purpose, ADDED Requirements, Scenarios with WHEN / THEN."
+    - "Always specify exact input validation and error responses."
+  tasks:
+    - Break implementation into testable, incremental tasks.
+    - Include unit/integration tests for every task.

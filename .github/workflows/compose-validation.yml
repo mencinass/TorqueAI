@@ -1,0 +1,28 @@
+name: Compose validation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  docker-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start stack
+        run: docker compose up -d --build
+      - name: Wait for API health
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:8000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs backend
+          exit 1
+      - name: Run backend tests
+        run: docker compose exec -T backend pytest -q
+      - name: Stop stack
+        if: always()
+        run: docker compose down
