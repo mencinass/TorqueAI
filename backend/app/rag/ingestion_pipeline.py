@@ -164,6 +164,9 @@ class IngestionPipeline:
         self._chunker = AutomotiveChunker(chunk_size=chunk_size, overlap=chunk_overlap)
         self._embed_batch_size = embed_batch_size
         self._upsert_batch_size = upsert_batch_size
+        # Serialize all runs so only one document is ingested at a time,
+        # regardless of how many jobs are triggered concurrently.
+        self._run_lock = asyncio.Lock()
 
     async def run(
         self,
@@ -191,6 +194,19 @@ class IngestionPipeline:
         meta = document_metadata or {}
         meta.setdefault("document_id", document_id)
 
+        if self._run_lock.locked():
+            logger.info("ingestion_queued", extra={"job_id": job_id, "document_id": document_id})
+        async with self._run_lock:
+            return await self._run_locked(job_id, document_id, meta, pdf_path, max_pages)
+
+    async def _run_locked(
+        self,
+        job_id: str,
+        document_id: int,
+        meta: dict,
+        pdf_path: Optional[str],
+        max_pages: Optional[int],
+    ) -> JobInfo:
         await self._tracker._update(
             job_id,
             status=JobStatus.RUNNING,

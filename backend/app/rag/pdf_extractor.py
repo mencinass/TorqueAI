@@ -4,6 +4,8 @@ from typing import AsyncGenerator, Dict, Optional
 import pypdf
 from app.core.logging import logger
 
+PAGE_EXTRACT_TIMEOUT_SECONDS = 30.0
+
 
 class PDFExtractor:
     """Memory-efficient streaming PDF page extractor in 100% Pure Python."""
@@ -67,11 +69,19 @@ class PDFExtractor:
             if max_pages is not None:
                 end_page = min(total_pages, start_page + max_pages - 1)
 
+            def _extract_page_text(idx: int) -> str:
+                """Run on a worker thread: page lookup + text extraction both do
+                blocking, synchronous parsing work that can stall the event loop
+                on large or malformed PDFs."""
+                return reader.pages[idx].extract_text() or ""
+
             for page_idx in range(start_page - 1, end_page):
                 page_num = page_idx + 1
                 try:
-                    page = reader.pages[page_idx]
-                    text = await asyncio.to_thread(page.extract_text) or ""
+                    text = await asyncio.wait_for(
+                        asyncio.to_thread(_extract_page_text, page_idx),
+                        timeout=PAGE_EXTRACT_TIMEOUT_SECONDS,
+                    )
                     cleaned_text = text.strip()
 
                     # Extract the first non-empty line as a section/chapter title candidate
@@ -83,6 +93,18 @@ class PDFExtractor:
                         "text": cleaned_text,
                         "char_count": len(cleaned_text),
                         "section_title": section_candidate,
+                        "total_pages": total_pages,
+                    }
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        f"Timed out extracting page {page_num} in {self.raw_path} "
+                        f"after {PAGE_EXTRACT_TIMEOUT_SECONDS}s; skipping page"
+                    )
+                    yield {
+                        "page_number": page_num,
+                        "text": "",
+                        "char_count": 0,
+                        "section_title": "Unreadable Page",
                         "total_pages": total_pages,
                     }
                 except Exception as exc:

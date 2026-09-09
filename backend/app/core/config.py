@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     EMBEDDING_OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
     # Local chat generation
-    CHAT_PROVIDER: str = "extractive"  # ollama | extractive
+    CHAT_PROVIDER: str = "extractive"  # ollama | nvidia | extractive
     CHAT_MODEL: str = "llama3.2:3b"
     CHAT_TIMEOUT: float = 120.0
     CHAT_TEMPERATURE: float = 0.2
@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
+
+    # NVIDIA NIM (OpenAI-compatible) chat provider
+    NVIDIA_API_KEY: Optional[str] = None
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_CHAT_MODEL: str = "deepseek-ai/deepseek-v4-pro-0813"
+    NVIDIA_RATE_LIMIT_RPM: int = 40
 
     @model_validator(mode="after")
     def assemble_database_url(self) -> "Settings":

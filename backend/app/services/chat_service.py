@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from app.agents.ollama import OllamaChatProvider, get_chat_provider
+from app.agents.ollama import NvidiaChatProvider, OllamaChatProvider, get_chat_provider
 from app.agents.prompt import build_grounded_messages
 from app.core.config import settings
 from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
@@ -25,7 +25,7 @@ class ChatService:
         self,
         qdrant: Optional[QdrantManager] = None,
         embeddings: Optional[BaseEmbeddingProvider] = None,
-        chat_provider: Optional[OllamaChatProvider] = None,
+        chat_provider: Optional[OllamaChatProvider | NvidiaChatProvider] = None,
     ) -> None:
         self.qdrant = qdrant or QdrantManager()
         self.embeddings = embeddings or get_embedding_provider()
