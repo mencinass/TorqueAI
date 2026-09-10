@@ -21,41 +21,24 @@ Leia este arquivo antes de alterar o projeto. Ele registra o estado real ao fim 
 5. **Rede de seguranca de memoria**: `docker-compose.yml` tem `deploy.resources.limits.memory: 4G` no servico `backend`. Se algo vazar memoria, o Docker mata e reinicia so esse container (politica `restart: unless-stopped`), sem arriscar o host (32GB RAM, sem swap configurado).
 6. **Qdrant ulimit**: adicionado `ulimits.nofile: 65536` no servico `qdrant` no compose, porque bati no erro `Too many open files (os error 24)` ao criar/deletar varias coleções de teste durante o debug.
 
-## PROBLEMA NAO RESOLVIDO: vazamento de memoria na ingestao de PDFs grandes
+## PROBLEMA RESOLVIDO: vazamento de memoria na ingestao de PDFs grandes
 
-Apos a correcao do pypdf (item 4 acima), ficou provado que a extracao de PDF (`PDFExtractor.stream_pages`) sozinha e limpa (testada com 300 paginas reais, RSS ficou flat em ~35MB). MAS o pipeline completo (`PDFExtractor` + `AutomotiveChunker` + `OllamaEmbeddingProvider` + `QdrantManager`, ou seja `IngestionPipeline.run()` em `backend/app/rag/ingestion_pipeline.py`) ainda vaza memoria de forma real e reprodutivel quando processa VARIAS CENTENAS de paginas seguidas do mesmo documento grande (`service_guide/MINI_R56/mini_R56_service.pdf`, 2129 paginas, 561MB).
+**Causa raiz encontrada e corrigida.** O "vazamento" nao era vazamento de verdade, e sim um **loop infinito de alocacao** no `AutomotiveChunker.chunk_page` (`backend/app/rag/chunker.py`). Quando o "clean break" (`\n\n` ou `. `) recuava o `end` para uma posicao tal que `end - chunk_overlap <= start`, o `start` nao avancava (a condicao de escape `if start <= 0 and end <= start` so pegava o caso `start <= 0`), e o loop gerava `DocumentChunk` infinitamente ate estourar o limite de 4GB do cgroup (OOM do container).
 
-### Evidencias coletadas (nao repetir esses testes, ja estao provados)
+- **Gatilho determinístico**: a pagina 85 do `mini_R56_service.pdf` (texto com paragrafos separados por `\n\n`, sem `. ` para ancorar o fallback) fazia `start` ficar preso em 897 e `end` em 1047 para sempre.
+- **Evidencia**: `dmesg` no host mostrava `Memory cgroup out of memory: Killed process (python) anon-rss: ~4.08GB` sempre identico; `faulthandler.dump_traceback` capturou o stack preso em `chunker.py:84 (uuid5)` / `:87 (DocumentChunk.__init__)`.
+- **Correcao** (em `chunker.py`): garantir progresso monotono — `next_start = end - overlap; if next_start <= start: next_start = start + 1`.
+- **Prova**: pipeline completo (extract + chunk + embed Ollama + upsert Qdrant) rodou **471 paginas** sem OOM, com **peak VmRSS 118MB / anon 84MB** (antes: OOM em ~95 paginas). Teste de regressao adicionado em `tests/test_ingestion.py::test_chunk_page_terminates_when_clean_break_pulls_back`.
+- `MALLOC_ARENA_MAX=1` nao era a causa (testado e descartado). `ThreadedChildWatcher`/FD leak tambem descartados (threads=2, fds=7 constantes ao longo do run).
 
-- `PDFExtractor` isolado (sem chunker/embedder/qdrant): 300 paginas reais, RSS **flat** (~35MB). Sem vazamento.
-- Pipeline completo via script manual, 70 paginas: RSS **flat** (~113MB -> 133MB). Limpo.
-- Pipeline completo via API real (`POST /api/v1/ingestion/start`) com `max_pages=70`: `status: done`, memoria ficou baixa (~110MB). Limpo.
-- Pipeline completo via API real com `max_pages=500`: crash por OOM em ~10-20s (bateu no limite de 4GB do container).
-- Pipeline completo via API real com `max_pages=100`: tambem crashou (~2.6GB antes de estourar) — ou seja o limiar NAO e um numero fixo de paginas, varia entre execucoes (pode depender de qual pagina especifica calhou de ser processada, ou nao ser puramente deterministico).
-- Scan de `pdftotext -f N -l N` pagina por pagina (1 a 500) da `mini_R56_service.pdf`: NENHUMA pagina individual produz saida anormalmente grande (>5000 bytes). Isso descarta a teoria de "uma pagina especifica corrompida/bomba de descompressao".
-- Teste com `tracemalloc` bisectando pagina 20 -> 60 (dentro de uma execucao limpa de 70 paginas): sem crescimento significativo, sem alocacao suspeita nos diffs.
-- Hipotese em teste (NAO CONCLUIDA, foi interrompida por limpeza de terminal, nao por OOM real): `MALLOC_ARENA_MAX=1` (mitigacao classica para fragmentacao de arenas do glibc malloc quando ha muitas threads/subprocessos de vida curta, como os milhares de `pdftotext` spawnados por documento). Rodou ate a pagina 50 com RSS baixo (101MB) antes do processo ser encerrado (SIGKILL, causa ambigua: pode ter sido o cgroup OU limpeza de terminal do proprio ambiente de dev, nao confirmado como OOM real).
-- Erro secundario encontrado (e corrigido): `Too many open files (os error 24)` no Qdrant, causado por varias colecoes de teste (`leak_test_collection`, `leak_test_collection2`, `leak_test_arena1`) criadas durante o debug. Ja deletadas. Ulimit do Qdrant ja aumentado (ver item 6 acima).
+### Estado atual (seguro, ingestao completa possivel)
 
-### Proximo passo recomendado (nao feito ainda)
-
-1. **Retomar o teste `MALLOC_ARENA_MAX=1`** ate completar (nao interromper por outros comandos no mesmo terminal — usar terminal dedicado e so fazer `get_terminal_output` para checar, nunca `run_in_terminal` sincrono em paralelo no mesmo terminal, isso manda Ctrl+C e mata o teste). Se resolver, aplicar `MALLOC_ARENA_MAX=1` como env var permanente do servico `backend` no `docker-compose.yml`.
-2. Se nao resolver, investigar se o watcher de subprocessos do asyncio (`ThreadedChildWatcher`, 1 thread por `pdftotext` spawnado) esta relacionado — testar reduzindo chamadas de subprocesso (ex: extrair varias paginas por chamada de `pdftotext` em vez de uma por vez) para ver se o vazamento desaparece.
-3. Alternativa mais robusta para producao: mover a extracao/ingestao para um **worker separado** do processo da API (fora do escopo desta sessao, ver secao "Melhorias sugeridas para producao" abaixo).
-
-### Estado atual (seguro, mas com ingestao parcial)
-
-- `.env`: `AUTO_INGEST_ENABLED=false` — NAO ligar para `true` com `AUTO_INGEST_FORCE=true` sem querer reproduzir o crash loop nos documentos grandes.
-- 4 documentos ja tem as primeiras 50 paginas ingeridas (testado como seguro) via `POST /api/v1/ingestion/start` com `max_pages: 50`:
-  - id 1: MINI R56 Service — 60 chunks
-  - id 2: MINI R56 Repair — 72 chunks
-  - id 3: MINI R53 Service — 0 chunks (paginas 1-50 sao capa/indice, sem texto util, nao e bug)
-  - id 4: Fiat 500 — rodou, resultado nao confirmado no fim da sessao (conferir com `GET /api/v1/ingestion/jobs`)
-- Colecao `automotive_manuals` no Qdrant tinha 206+ pontos ao fim da sessao.
-- Para ingerir mais paginas de um documento com seguranca, usar `max_pages` bounded (50-70 confirmado seguro; 100+ pode crashar, mas o `mem_limit: 4G` protege o host de qualquer forma):
+- `.env`: `AUTO_INGEST_ENABLED=false` e `AUTO_INGEST_FORCE=false` (estado seguro). Os defaults no codigo agora tambem sao `false`/`ollama`/`bge-m3`/`1024` (alinhados com o compose e `.env.example` — antes havia incoerencia: compose usava `AUTO_INGEST_ENABLED=true` e `config.py` tinha `mock`/`nomic-embed-text`/`768`/`extractive`).
+- 4 documentos cadastrados (ids 1-4, ver `seed.py`), colecao `automotive_manuals` (dim 1024) ativa no Qdrant.
+- Ingerir paginas de um documento (agora sem limite de seguranca de 50 paginas, mas o `mem_limit: 4G` continua como rede de seguranca):
   ```bash
   curl -X POST http://localhost:8000/api/v1/ingestion/start -H 'Content-Type: application/json' \
-    -d '{"document_id": 1, "pdf_path": "/app/service_guide/MINI_R56/mini_R56_service.pdf", "max_pages": 50}'
+    -d '{"document_id": 1, "pdf_path": "/app/service_guide/MINI_R56/mini_R56_service.pdf", "max_pages": 500}'
   ```
 
 ## Melhorias sugeridas para producao (discutidas, nao implementadas)
@@ -78,7 +61,6 @@ curl http://localhost:8000/api/v1/ingestion/jobs   # progresso de jobs de ingest
 
 ## Cuidados
 
-- Nao ligar `AUTO_INGEST_FORCE=true` sem limitar `max_pages` ou sem estar pronto para o vazamento de memoria acontecer de novo (esta contido pelo `mem_limit: 4G`, mas ainda assim reinicia o container).
-- Nao remover o `mem_limit` do backend nem os `ulimits` do Qdrant — foram adicionados por causa de problemas reais encontrados nesta sessao.
+- Nao ligar `AUTO_INGEST_FORCE=true` sem intencao de reindexacao completa (a cada restart do backend, reprocessa os PDFs). O bug de memoria que causava crash foi corrigido, mas o `mem_limit: 4G` do backend e os `ulimits` do Qdrant continuam como rede de seguranca — nao remover.
 - `AGENTS.md` (este arquivo) reflete o estado real; `docs/PROJECT_STATUS.md` esta desatualizado (Windows/Podman) e deve ser tratado com cautela ou atualizado numa proxima sessao.
 

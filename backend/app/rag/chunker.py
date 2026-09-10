@@ -104,9 +104,13 @@ class AutomotiveChunker:
             if end >= text_len:
                 break
 
-            start = end - self.chunk_overlap
-            if start <= 0 and end <= start:
-                break
+            # Advance by at least one character to guarantee forward progress
+            # (the "clean break" above can pull ``end`` back far enough that
+            # ``end - overlap <= start``, which would loop forever).
+            next_start = end - self.chunk_overlap
+            if next_start <= start:
+                next_start = start + 1
+            start = next_start
 
         return chunks
 

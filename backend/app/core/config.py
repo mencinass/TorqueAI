@@ -38,19 +38,19 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION: str = "automotive_manuals"
 
     # Embedding configuration
-    EMBEDDING_PROVIDER: str = "mock"  # ollama | openai | mock
-    EMBEDDING_MODEL: str = "nomic-embed-text"
-    EMBEDDING_DIM: int = 768
+    EMBEDDING_PROVIDER: str = "ollama"  # ollama | openai | mock
+    EMBEDDING_MODEL: str = "bge-m3"
+    EMBEDDING_DIM: int = 1024
     EMBEDDING_OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
     # Local chat generation
-    CHAT_PROVIDER: str = "extractive"  # ollama | nvidia | extractive
+    CHAT_PROVIDER: str = "ollama"  # ollama | nvidia | extractive
     CHAT_MODEL: str = "llama3.2:3b"
     CHAT_TIMEOUT: float = 120.0
     CHAT_TEMPERATURE: float = 0.2
     CHAT_MAX_TOKENS: int = 800
     CHAT_MIN_SCORE: float = 0.2
-    AUTO_INGEST_ENABLED: bool = True
+    AUTO_INGEST_ENABLED: bool = False
     AUTO_INGEST_FORCE: bool = False
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OPENAI_API_KEY: Optional[str] = None

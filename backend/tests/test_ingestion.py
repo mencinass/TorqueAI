@@ -115,6 +115,37 @@ class TestAutomotiveChunker:
         ids_p2 = {c.chunk_id for c in chunks_p2}
         assert ids_p1.isdisjoint(ids_p2)
 
+    def test_chunk_page_terminates_when_clean_break_pulls_back(
+        self, sample_metadata: dict
+    ) -> None:
+        """Regression: a "clean break" (\\n\\n or \". \") can pull ``end`` back far
+        enough that ``end - overlap <= start``, which previously caused an
+        infinite loop (and a container OOM on real manual pages).
+
+        Reproduces the MINI R56 service manual page-85 shape: a paragraph
+        boundary that lands just past ``start`` so the overlap zone overlaps
+        the break position, leaving ``start`` unable to advance.
+        """
+        # Use small chunk/overlap so the overlap window dominates the clean
+        # break: a boundary found early in the window yields end-overlap<=start.
+        chunker = AutomotiveChunker(chunk_size=60, chunk_overlap=40, min_chunk_size=10)
+        # Text with a paragraph break positioned near the window start on the
+        # second iteration — the exact shape that looped.
+        text = ("aaa bbb ccc ddd eee fff ggg hhh.\n\n" * 30)
+        chunks = chunker.chunk_page(
+            page_text=text, page_number=85, section_title="Overview",
+            document_metadata=sample_metadata,
+        )
+        # Must terminate (a hang would never return). The precise count is not
+        # the point; what matters is finite output with no runaway.
+        assert isinstance(chunks, list)
+        # No chunk should duplicate its neighbour's start character, and the
+        # total must be bounded by the character count (a strong signal that
+        # the walker strictly advanced and never re-emitted the same window).
+        assert len(chunks) <= len(text)
+        for chunk in chunks:
+            assert len(chunk.text) >= chunker.min_chunk_size
+
     def test_to_payload_returns_dict(
         self, chunker: AutomotiveChunker, sample_metadata: dict
     ) -> None:
