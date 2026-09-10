@@ -6,7 +6,7 @@
 # Automatically detect podman compose or docker compose
 COMPOSE ?= $(shell if podman compose version >/dev/null 2>&1; then echo "podman compose"; elif command -v podman-compose >/dev/null 2>&1; then echo "podman-compose"; else echo "docker compose"; fi)
 
-.PHONY: help up down clean restart build logs logs-backend test lint health validate ps shell
+.PHONY: help up down clean restart build logs logs-backend test lint health validate ps shell ollama-pull
 
 help:
 	@echo "Automotive AI Agent - Comandos Disponíveis:"
@@ -23,6 +23,8 @@ help:
 	@echo "  make health        - Testa o endpoint de saúde do sistema"
 	@echo "  make validate      - Sobe o stack, valida a saúde e executa os testes"
 	@echo "  make shell         - Abre um terminal interativo dentro do contêiner backend"
+	@echo "  make ollama-pull   - Baixa os modelos llama3.2:3b e bge-m3 no contêiner ollama"
+
 
 up:
 	@echo "==> Iniciando serviços com $(COMPOSE)..."
@@ -75,4 +77,10 @@ spec-validate:
 
 shell:
 	$(COMPOSE) exec backend /bin/bash
+
+ollama-pull:
+	@echo "==> Baixando modelos no contêiner ollama..."
+	$(COMPOSE) exec ollama ollama pull llama3.2:3b
+	$(COMPOSE) exec ollama ollama pull bge-m3
+
 

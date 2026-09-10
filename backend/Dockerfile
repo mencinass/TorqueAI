@@ -12,9 +12,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system runtime dependencies (only curl for healthchecks)
+# Install system runtime dependencies:
+# - curl: healthchecks
+# - poppler-utils: pdfinfo/pdftotext, used as isolated subprocesses for robust
+#   PDF extraction (a stuck/pathological page can be killed outright, unlike
+#   an in-process Python library)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
