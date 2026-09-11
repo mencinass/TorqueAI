@@ -12,4 +12,5 @@ venv/
 .env
 .git
 .gitignore
+.thumb_cache
 

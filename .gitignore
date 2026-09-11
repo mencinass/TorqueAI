@@ -63,10 +63,12 @@ qdrant_data/
 service_guide/.ingestion-complete*
 *.pid
 *.sqlite
+.thumb_cache/
 
 # Project specific
 backend/.env
 scratch/
 NUL
 service_guide/**/*.pdf
+service_guide/**/*.PDF
 

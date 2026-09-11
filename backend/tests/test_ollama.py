@@ -24,7 +24,7 @@ async def test_ollama_provider_sends_grounded_chat_payload():
     async with httpx.AsyncClient(transport=transport) as client:
         provider = OllamaChatProvider(
             base_url="http://ollama",
-            model="llama3.2:3b",
+            model="qwen2.5:7b",
             client=client,
         )
         answer = await provider.generate([{"role": "user", "content": "Pergunta"}])
@@ -32,7 +32,7 @@ async def test_ollama_provider_sends_grounded_chat_payload():
     assert answer == "Resposta [Fonte 1]."
     payload = json.loads(captured["payload"])
     assert payload["stream"] is False
-    assert payload["model"] == "llama3.2:3b"
+    assert payload["model"] == "qwen2.5:7b"
 
 
 @pytest.mark.asyncio
@@ -80,7 +80,7 @@ def test_grounded_prompt_contains_rules_and_numbered_sources():
     assert messages[0]["content"] == SYSTEM_PROMPT
     assert "[Fonte 1]" in messages[-1]["content"]
     assert "Manual R56" in messages[-1]["content"]
-    assert "mesmo idioma" in messages[0]["content"]
+    assert "portugues do Brasil" in messages[0]["content"]
 
 
 @pytest.mark.asyncio

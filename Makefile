@@ -23,7 +23,7 @@ help:
 	@echo "  make health        - Testa o endpoint de saúde do sistema"
 	@echo "  make validate      - Sobe o stack, valida a saúde e executa os testes"
 	@echo "  make shell         - Abre um terminal interativo dentro do contêiner backend"
-	@echo "  make ollama-pull   - Baixa os modelos llama3.2:3b e bge-m3 no contêiner ollama"
+	@echo "  make ollama-pull   - Baixa os modelos qwen2.5:7b e bge-m3 no contêiner ollama"
 
 
 up:
@@ -80,7 +80,7 @@ shell:
 
 ollama-pull:
 	@echo "==> Baixando modelos no contêiner ollama..."
-	$(COMPOSE) exec ollama ollama pull llama3.2:3b
+	$(COMPOSE) exec ollama ollama pull qwen2.5:7b
 	$(COMPOSE) exec ollama ollama pull bge-m3
 
 
