@@ -129,6 +129,14 @@ async def create_vehicle(payload: VehicleCreate, db: AsyncSession = Depends(get_
 
 
 @router.get(
+    "/picker",
+    summary="Picker options (generations and systems) for the chat UI",
+)
+async def get_picker_options(db: AsyncSession = Depends(get_db)):
+    return await VehicleService.get_picker_options(db)
+
+
+@router.get(
     "/{vehicle_id}",
     response_model=VehicleDetailResponse,
     summary="Get comprehensive vehicle details by ID",

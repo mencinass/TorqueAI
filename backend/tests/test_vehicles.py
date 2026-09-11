@@ -77,3 +77,22 @@ async def test_get_vehicle_detail_not_found(async_client: httpx.AsyncClient):
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
+
+@pytest.mark.asyncio
+async def test_get_picker_options(async_client: httpx.AsyncClient):
+    """Test GET /api/v1/vehicles/picker returns generations and systems."""
+    mock_opts = {
+        "generations": [
+            {"code": "R56", "name": "Second Generation", "brand": "MINI", "model": "Cooper"},
+            {"code": "EJ", "name": "Sixth Generation", "brand": "Honda", "model": "Civic"},
+        ],
+        "systems": ["engine", "general"],
+    }
+    with patch("app.services.vehicle_service.VehicleService.get_picker_options", return_value=mock_opts):
+        response = await async_client.get("/api/v1/vehicles/picker")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["generations"]) == 2
+        assert data["generations"][1]["code"] == "EJ"
+        assert "engine" in data["systems"]
+

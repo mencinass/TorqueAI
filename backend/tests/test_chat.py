@@ -65,7 +65,8 @@ async def test_chat_returns_no_evidence_without_results():
 async def test_chat_page_is_available(async_client: httpx.AsyncClient):
     response = await async_client.get("/api/v1/chat/")
     assert response.status_code == 200
-    assert "Assistente de oficina" in response.text
+    assert "TorqueAI" in response.text
+    assert "Consulta técnica" in response.text
 
 
 @pytest.mark.asyncio

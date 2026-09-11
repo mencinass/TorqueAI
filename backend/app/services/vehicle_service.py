@@ -1,7 +1,8 @@
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from app.models.document import TechnicalDocument
 from app.models.vehicle import Brand, Engine, Generation, Model, Vehicle
 from app.schemas.vehicle import (
     BrandCreate,
@@ -165,4 +166,42 @@ class VehicleService:
         await db.commit()
         await db.refresh(vehicle)
         return vehicle
+
+    # --------------------------------------------------------------------------
+    # Picker options for the chat UI (generations + systems with documents)
+    # --------------------------------------------------------------------------
+    @staticmethod
+    async def get_picker_options(db: AsyncSession) -> dict:
+        """Return generations and systems that have catalogs, for UI dropdowns."""
+        # Generations that have at least one technical document.
+        gen_stmt = (
+            select(Generation)
+            .join(TechnicalDocument, TechnicalDocument.generation_id == Generation.id)
+            .options(joinedload(Generation.model).joinedload(Model.brand))
+            .order_by(Generation.code)
+            .distinct()
+        )
+        gen_result = await db.execute(gen_stmt)
+        generations = gen_result.unique().scalars().all()
+        generation_options = [
+            {
+                "code": g.code,
+                "name": g.name,
+                "brand": g.model.brand.name if g.model.brand else "",
+                "model": g.model.name,
+            }
+            for g in generations
+        ]
+
+        # Distinct systems across documents.
+        sys_stmt = (
+            select(TechnicalDocument.system)
+            .where(TechnicalDocument.system.isnot(None))
+            .distinct()
+            .order_by(TechnicalDocument.system)
+        )
+        sys_result = await db.execute(sys_stmt)
+        systems = [row[0] for row in sys_result.all() if row[0]]
+
+        return {"generations": generation_options, "systems": systems}
 
