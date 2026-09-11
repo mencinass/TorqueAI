@@ -16,7 +16,7 @@ async def test_health_check_healthy(async_client: httpx.AsyncClient):
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
-        assert data["project"] == "Automotive AI Agent"
+        assert data["project"] == "TorqueAI"
         assert data["services"]["database"]["status"] == "connected"
         assert data["services"]["vector_db"]["status"] == "connected"
 

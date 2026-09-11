@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     # Project metadata
-    PROJECT_NAME: str = "Automotive AI Agent"
+    PROJECT_NAME: str = "TorqueAI"
     VERSION: str = "0.1.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # Local chat generation
     CHAT_PROVIDER: str = "ollama"  # ollama | nvidia | extractive
-    CHAT_MODEL: str = "llama3.2:3b"
+    CHAT_MODEL: str = "qwen2.5:7b"
     CHAT_TIMEOUT: float = 120.0
     CHAT_TEMPERATURE: float = 0.2
     CHAT_MAX_TOKENS: int = 800

@@ -49,7 +49,7 @@ def create_application() -> FastAPI:
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
         description=(
-            "Automotive AI Agent - Specialized AI technical assistant "
+            "TorqueAI - Specialized AI technical assistant "
             "for automotive diagnostics, service manual retrieval, and workshop procedures."
         ),
         docs_url="/docs",

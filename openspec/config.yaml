@@ -2,7 +2,7 @@ schema: spec-driven
 
 # Project context for AI assistants and OpenSpec tooling
 context: |
-  Project: Automotive AI Agent (helpMec)
+  Project: TorqueAI
   Domain: Automotive technical assistant, service manuals RAG, mechanical diagnostics, OBD/DTC lookup.
   
   Tech Stack:

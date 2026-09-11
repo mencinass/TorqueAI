@@ -34,7 +34,7 @@ class HealthCheckResponse(BaseModel):
         description="Overall system status: 'healthy' or 'unhealthy'",
         examples=["healthy"],
     )
-    project: str = Field(..., examples=["Automotive AI Agent"])
+    project: str = Field(..., examples=["TorqueAI"])
     version: str = Field(..., examples=["0.1.0"])
     environment: str = Field(..., examples=["development"])
     timestamp: datetime = Field(
