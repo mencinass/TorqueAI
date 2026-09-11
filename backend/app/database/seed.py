@@ -19,13 +19,15 @@ async def seed_initial_data(db: AsyncSession) -> None:
     # 1. Brands
     mini = Brand(name="MINI", country="United Kingdom")
     fiat = Brand(name="Fiat", country="Italy")
-    db.add_all([mini, fiat])
+    honda = Brand(name="Honda", country="Japan")
+    db.add_all([mini, fiat, honda])
     await db.flush()
 
     # 2. Models
     cooper = Model(name="Cooper", brand_id=mini.id)
     fiat_500 = Model(name="500", brand_id=fiat.id)
-    db.add_all([cooper, fiat_500])
+    civic = Model(name="Civic", brand_id=honda.id)
+    db.add_all([cooper, fiat_500, civic])
     await db.flush()
 
     # 3. Generations
@@ -50,7 +52,21 @@ async def seed_initial_data(db: AsyncSession) -> None:
         year_end=2014,
         model_id=fiat_500.id,
     )
-    db.add_all([r56, r53, type_312])
+    civic_eg = Generation(
+        name="Fifth Generation (EG/EH)",
+        code="EG",
+        year_start=1992,
+        year_end=1995,
+        model_id=civic.id,
+    )
+    civic_ej = Generation(
+        name="Sixth Generation (EJ/EK)",
+        code="EJ",
+        year_start=1996,
+        year_end=2000,
+        model_id=civic.id,
+    )
+    db.add_all([r56, r53, type_312, civic_eg, civic_ej])
     await db.flush()
 
     # 4. Engines
@@ -130,6 +146,88 @@ async def seed_initial_data(db: AsyncSession) -> None:
             language="en",
             generation_id=type_312.id,
             engine_id=fire14.id,
+        ),
+        # --- Honda Civic (unique files only; duplicates excluded) ---
+        TechnicalDocument(
+            title="Honda Civic 1992-1995 Service Manual (USDM)",
+            file_path="service_guide/CVIC/USDM_92-95_civic.pdf",
+            file_size_bytes=resolve_size("service_guide/CVIC/USDM_92-95_civic.pdf"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_eg.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic EJ6/EJ7/EJ8 (1996-2000) Service Manual",
+            file_path="service_guide/CVIC/Civic EJ6, EJ7, EJ8 (96-00) Service Manual.pdf",
+            file_size_bytes=resolve_size("service_guide/CVIC/Civic EJ6, EJ7, EJ8 (96-00) Service Manual.pdf"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR300A",
+            file_path="service_guide/CVIC/62sr300a.pdf",
+            file_size_bytes=resolve_size("service_guide/CVIC/62sr300a.pdf"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR300B",
+            file_path="service_guide/CVIC/62SR300B.PDF",
+            file_size_bytes=resolve_size("service_guide/CVIC/62SR300B.PDF"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR320",
+            file_path="service_guide/CVIC/62SR320.PDF",
+            file_size_bytes=resolve_size("service_guide/CVIC/62SR320.PDF"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR321",
+            file_path="service_guide/CVIC/62sr321.pdf",
+            file_size_bytes=resolve_size("service_guide/CVIC/62sr321.pdf"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR322",
+            file_path="service_guide/CVIC/62sr322 (1).pdf",
+            file_size_bytes=resolve_size("service_guide/CVIC/62sr322 (1).pdf"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR323",
+            file_path="service_guide/CVIC/62SR323.PDF",
+            file_size_bytes=resolve_size("service_guide/CVIC/62SR323.PDF"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
+        ),
+        TechnicalDocument(
+            title="Honda Civic (96-00) — 62SR324",
+            file_path="service_guide/CVIC/62sr324 (1).pdf",
+            file_size_bytes=resolve_size("service_guide/CVIC/62sr324 (1).pdf"),
+            document_type="workshop_manual",
+            system="general",
+            language="en",
+            generation_id=civic_ej.id,
         ),
     ]
     db.add_all(docs)

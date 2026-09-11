@@ -1,4 +1,4 @@
-# Contexto do agente: TorqueAI (helpMec)
+# Contexto do agente: TorqueAI
 
 ## Como usar este arquivo
 
@@ -13,7 +13,7 @@ Leia este arquivo antes de alterar o projeto. Ele registra o estado real ao fim 
 ## O que foi feito nesta sessao
 
 1. **Ollama containerizado com GPU**: adicionado servico `ollama` (imagem `ollama/ollama:latest`) no `docker-compose.yml`, com passthrough de GPU via `deploy.resources.reservations.devices` (driver nvidia). Backend fala com ele via `http://ollama:11434` (rede interna do compose, nao mais via `host.containers.internal`, que era um artefato do Podman/Windows).
-2. **Modelos baixados**: `llama3.2:3b` (chat) e `bge-m3` (embeddings, dim 1024) ja estao no volume `ollama_data`. `make ollama-pull` baixa ambos se precisar de novo.
+2. **Modelos baixados**: `qwen2.5:7b` (chat) e `bge-m3` (embeddings, dim 1024) ja estao no volume `ollama_data`. `make ollama-pull` baixa ambos se precisar de novo.
 3. **Provider padrao trocado**: `.env`/`.env.example`/`docker-compose.yml` usam `CHAT_PROVIDER=ollama` e `EMBEDDING_PROVIDER=ollama` por padrao (antes era `nvidia`, API cloud paga). A chave `NVIDIA_API_KEY` continua no `.env` como fallback, mas nao e mais usada por padrao — considerar revogar se nao for mais necessaria.
 4. **PDF extraction reescrita**: `backend/app/rag/pdf_extractor.py` NAO usa mais `pypdf`. Agora usa `poppler-utils` (`pdfinfo`/`pdftotext`) via subprocesso (`asyncio.create_subprocess_exec`), com timeout de 30s e `RLIMIT_AS` de 2GiB por pagina. Isso resolveu um bug real: paginas pesadas travavam a GIL dentro de uma thread (pypdf + `asyncio.to_thread`) e o timeout do `asyncio.wait_for` nunca disparava porque a GIL ficava presa em codigo C (zlib). Com subprocesso isolado, o kill (SIGKILL) funciona de verdade.
    - `backend/Dockerfile` instala `poppler-utils`.
@@ -54,7 +54,7 @@ docker compose up -d --build        # subir tudo
 docker compose ps                   # status
 docker compose logs backend -f      # logs do backend
 docker stats --no-stream            # uso de CPU/memoria por container
-make ollama-pull                    # baixar llama3.2:3b e bge-m3 no container ollama
+make ollama-pull                    # baixar qwen2.5:7b e bge-m3 no container ollama
 curl http://localhost:8000/health   # healthcheck
 curl http://localhost:8000/api/v1/ingestion/jobs   # progresso de jobs de ingestao
 ```

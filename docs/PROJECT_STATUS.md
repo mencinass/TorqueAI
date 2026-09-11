@@ -1,8 +1,8 @@
-# helpMec: estado atual do projeto
+# TorqueAI: estado atual do projeto
 
 ## Visao geral
 
-O helpMec e um backend FastAPI para consulta tecnica automotiva usando manuais de servico como fonte de evidencias. O sistema combina PostgreSQL para catalogo de veiculos e documentos, Qdrant para busca vetorial, Ollama para embeddings e geracao local, e uma interface web de chat.
+O TorqueAI e um backend FastAPI para consulta tecnica automotiva usando manuais de servico como fonte de evidencias. O sistema combina PostgreSQL para catalogo de veiculos e documentos, Qdrant para busca vetorial, Ollama para embeddings e geracao local, e uma interface web de chat.
 
 Politicas centrais:
 
@@ -28,7 +28,7 @@ O arquivo `.env` local esta configurado para:
 
 ```env
 CHAT_PROVIDER=ollama
-CHAT_MODEL=llama3.2:3b
+CHAT_MODEL=qwen2.5:7b
 EMBEDDING_PROVIDER=ollama
 EMBEDDING_MODEL=bge-m3
 EMBEDDING_DIM=1024
@@ -50,7 +50,7 @@ Caso contrario, cada reinicio do backend reprocessara os PDFs.
 Modelos esperados no container:
 
 ```text
-llama3.2:3b  # geracao de respostas
+qwen2.5:7b  # geracao de respostas
 bge-m3       # embeddings multilingues, dimensao 1024
 ```
 

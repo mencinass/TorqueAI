@@ -36,14 +36,14 @@ Automotive AI Agent
 ├── Banco Vetorial (Qdrant)
 │   └── Armazenamento de vetores de alta dimensão com filtros de metadados
 └── Ollama (opcional, com GPU)
-    └── Geração local de chat (llama3.2:3b) e embeddings (bge-m3)
+    └── Geração local de chat (qwen2.5:7b) e embeddings (bge-m3)
 ```
 
 
 ## 📂 Estrutura do Repositório
 
 ```text
-helpMec/
+TorqueAI/
 ├── backend/
 │   ├── app/
 │   │   ├── api/                # Rotas da API e injeção de dependências
@@ -161,20 +161,20 @@ Se a inicialização falhar, confirme que o Docker Engine está ativo ou que a P
 
 O Ollama roda como um serviço do Compose (`ollama`), já configurado no `docker-compose.yml` com acesso à GPU (quando disponível). Por padrão, o backend usa:
 
-- Chat: `llama3.2:3b` via `CHAT_PROVIDER=ollama`.
+- Chat: `qwen2.5:7b` via `CHAT_PROVIDER=ollama`.
 - Embeddings: `bge-m3` (dimensão 1024) via `EMBEDDING_PROVIDER=ollama`.
 
 Baixe os modelos necessários no contêiner Ollama:
 
 ```bash
-make ollama-pull        # baixa llama3.2:3b e bge-m3
+make ollama-pull        # baixa qwen2.5:7b e bge-m3
 ```
 
 As variáveis relevantes no `.env` são (defaults já alinhados com o Compose):
 
 ```env
 CHAT_PROVIDER=ollama
-CHAT_MODEL=llama3.2:3b
+CHAT_MODEL=qwen2.5:7b
 OLLAMA_BASE_URL=http://ollama:11434
 EMBEDDING_PROVIDER=ollama
 EMBEDDING_MODEL=bge-m3
@@ -182,6 +182,66 @@ EMBEDDING_DIM=1024
 ```
 
 Também há providers alternativos para chat (`nvidia`, `extractive`) e embeddings (`openai`, `mock` para testes offline). Com a API em execução, abra `http://localhost:8000/api/v1/chat/`. O modelo recebe somente os trechos recuperados dos manuais; sem evidência suficiente, o chat não gera uma conclusão técnica.
+
+
+## 📥 Ingestão de PDFs via API
+
+Os manuais locais já cadastrados são ingeridos automaticamente no primeiro *start* (ver "Auto-ingestão" abaixo). Para **novos** PDFs, use o endpoint `POST /api/v1/ingestion/start`.
+
+### Antes de ingerir
+
+1. Coloque o PDF em `service_guide/` (montado como somente-leitura em `/app/service_guide` no backend); ou em qualquer caminho acessível dentro do contêiner backend.
+2. O documento precisa estar cadastrado na tabela `technical_documents` (Postgres) — dê um `INSERT` com `file_path`, ou passe um `document_id` que já exista. O `pdf_path` enviado no corpo pode apontar diretamente para o arquivo dentro do contêiner (ex.: `/app/service_guide/<novo>/<arquivo>.pdf`), dispensando o cadastro prévio no banco para o texto, mas o `document_id` é obrigatório.
+
+### Iniciar uma ingestão
+
+```bash
+curl -X POST http://localhost:8000/api/v1/ingestion/start \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "document_id": 5,
+    "pdf_path": "/app/service_guide/NOVO/manual.pdf",
+    "max_pages": 500,
+    "document_metadata": {
+      "document_title": "Manual do Novo Modelo",
+      "document_type": "workshop_manual",
+      "system": "engine",
+      "generation_code": "F56",
+      "engine_code": "B48"
+    }
+  }'
+```
+
+Campos do corpo (`IngestionStartRequest`):
+
+| Campo | Tipo | Descrição |
+| :--- | :--- | :--- |
+| `document_id` | int | Obrigatório. PK do `TechnicalDocument` (qualquer id existente ou novo). |
+| `pdf_path` | string | Opcional. Caminho do PDF dentro do contêiner; se omitido, tentará auto-resolver a partir do `document_id`. |
+| `max_pages` | int | Opcional. Limite de páginas (ex.: `500`). `null`/omitido = todas as páginas. |
+| `chunk_size` | int | Opcional, default `1000`. Tamanho do chunk em caracteres. |
+| `chunk_overlap` | int | Opcional, default `150`. Sobreposição entre chunks. |
+| `document_metadata` | object | Opcional. `document_title`, `document_type`, `system`, `generation_code`, `engine_code`. **Importante passar** para que os chunks levem os metadados corretos (senão caem em defaults `workshop_manual`/`general`). |
+
+A resposta é `202 Accepted` com um `job_id`. A ingestão roda em *background*.
+
+### Acompanhar o progresso
+
+```bash
+# Listar todos os jobs
+curl http://localhost:8000/api/v1/ingestion/jobs
+
+# Status de um job específico
+curl http://localhost:8000/api/v1/ingestion/jobs/<job_id>
+```
+
+O job retorna `status` (`pending` → `running` → `done`/`failed`), `total_pages`, `pages_processed`, `chunks_created` e `points_upserted`.
+
+### Auto-ingestão no startup
+
+No *startup*, o backend consulta os documentos da tabela `technical_documents` e os ingere quando a coleção está vazia (`AUTO_INGEST_ENABLED=true`). Para reprocessar tudo do zero, defina `AUTO_INGEST_FORCE=true` (reprocessa os PDFs a cada restart — use apenas para reindexação e volte para `false` ao terminar). Ajuste essas variáveis no `.env` e recrie o contêiner (`docker compose up -d --force-recreate backend`); um simples `restart` não re-lê o `.env`.
+
+> **Nota sobre OCR**: PDFs **escaneados** (imagem sem camada de texto) não produzem texto via `pdftotext` e geram 0 chunks — é o caso, por exemplo, do manual R53 deste repositório. Para esses, é necessário um passo de OCR (ex.: `ocrmypdf`) antes da ingestão.
 
 
 ## 📋 OpenSpec (Spec-Driven Development)
@@ -218,9 +278,10 @@ Após iniciar os contêineres:
 | **ReDoc** | `http://localhost:8000/redoc` | Documentação estática alternativa |
 | **Qdrant Dashboard** | `http://localhost:6333/dashboard` | Interface web para inspecionar coleções vetoriais |
 | **PostgreSQL** | `localhost:5432` | Banco relacional (`user: automotive_user`, `db: automotive_db`) |
-| **Ollama** | `localhost:11434` | Chat local e embeddings (`llama3.2:3b`, `bge-m3`) |
+| **Ollama** | `localhost:11434` | Chat local e embeddings (`qwen2.5:7b`, `bge-m3`) |
 | **Chat do agente** | `http://localhost:8000/api/v1/chat/` | Interface conversacional fundamentada no RAG |
 | **Jobs de ingestão** | `http://localhost:8000/api/v1/ingestion/jobs` | Progresso dos jobs de ingestão de PDF |
+| **Thumbnail de página** | `/api/v1/documents/{id}/page/{n}/thumbnail` | Renderiza a página `n` de um manual em PNG (validação visual de fonte no chat) |
 
 ### Exemplo de Resposta do Health Check:
 ```json

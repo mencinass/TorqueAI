@@ -14,8 +14,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import get_db
+from app.models.document import TechnicalDocument
 
 router = APIRouter()
 
@@ -117,8 +122,31 @@ async def start_ingestion(
     payload: IngestionStartRequest,
     background_tasks: BackgroundTasks,
     request: Request,
+    db: AsyncSession = Depends(get_db),
 ) -> IngestionStartResponse:
     tracker = request.app.state.job_tracker
+
+    # Resolve document metadata from the catalog when the client omits it,
+    # so chunks carry correct title/system/generation/engine like auto-ingestion.
+    document_metadata = payload.document_metadata
+    if document_metadata is None:
+        result = await db.execute(
+            select(TechnicalDocument).where(TechnicalDocument.id == payload.document_id)
+        )
+        doc = result.scalar_one_or_none()
+        if doc is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Technical document with ID {payload.document_id} not found",
+            )
+        document_metadata = {
+            "document_id": doc.id,
+            "document_title": doc.title,
+            "document_type": doc.document_type,
+            "system": doc.system,
+            "generation_code": doc.generation.code if doc.generation else None,
+            "engine_code": doc.engine.code if doc.engine else None,
+        }
 
     job_id = await tracker.create(document_id=payload.document_id)
 
@@ -129,7 +157,7 @@ async def start_ingestion(
         payload.document_id,
         payload.pdf_path,
         payload.max_pages,
-        payload.document_metadata,
+        document_metadata,
     )
 
     return IngestionStartResponse(

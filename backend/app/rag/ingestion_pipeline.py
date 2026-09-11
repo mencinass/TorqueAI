@@ -35,6 +35,39 @@ from app.rag.qdrant_manager import QdrantManager
 logger = get_logger(__name__)
 
 
+async def _resolve_pdf_path(document_id: int, pdf_path: Optional[str]) -> str:
+    """Return the PDF path for a document, auto-resolving from the DB.
+
+    When ``pdf_path`` is omitted (the API calls it "auto-resolved from
+    document_id"), look up the ``file_path`` registered in PostgreSQL.  If the
+    DB is unavailable or the document is not found, fall back to ``pdf_path``
+    (which may still be ``None``, in which case :class:`PDFExtractor` will
+    raise a clear error).
+    """
+    if pdf_path:
+        return pdf_path
+    try:
+        from sqlalchemy import select
+        from app.database.session import async_session_factory
+        from app.models.document import TechnicalDocument
+
+        async with async_session_factory() as session:
+            result = await session.execute(
+                select(TechnicalDocument.file_path).where(
+                    TechnicalDocument.id == document_id
+                )
+            )
+            row = result.scalar_one_or_none()
+        if row:
+            return row
+    except Exception as exc:  # pragma: no cover - best-effort resolution
+        logger.warning(
+            "pdf_path_auto_resolve_failed",
+            extra={"document_id": document_id, "error": str(exc)},
+        )
+    return pdf_path or ""
+
+
 # ---------------------------------------------------------------------------
 # Job state
 # ---------------------------------------------------------------------------
@@ -216,7 +249,8 @@ class IngestionPipeline:
         try:
             await self._qdrant.ensure_collection()
 
-            extractor = PDFExtractor(document_id=document_id, pdf_path=pdf_path)
+            resolved_path = await _resolve_pdf_path(document_id, pdf_path)
+            extractor = PDFExtractor(document_id=document_id, pdf_path=resolved_path)
 
             # Count total pages first (cheap)
             total_pages = await asyncio.to_thread(extractor.get_total_pages)
