@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 
+from app.api.deps import require_auth
 from app.schemas.chat import ChatHistoryResponse, ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 
@@ -8,13 +9,13 @@ router = APIRouter()
 
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def chat_page(request: Request) -> HTMLResponse:
-    """Serve the browser chat without a separate frontend build step."""
+async def chat_page(request: Request, username: str = Depends(require_auth)) -> HTMLResponse:
+    """Serve the browser chat, only for authenticated users."""
     return HTMLResponse(_CHAT_PAGE)
 
 
 @router.post("/messages", response_model=ChatResponse, status_code=status.HTTP_200_OK)
-async def send_message(payload: ChatRequest) -> ChatResponse:
+async def send_message(payload: ChatRequest, username: str = Depends(require_auth)) -> ChatResponse:
     try:
         return await ChatService().answer(payload)
     except Exception as exc:
@@ -25,7 +26,7 @@ async def send_message(payload: ChatRequest) -> ChatResponse:
 
 
 @router.get("/sessions/{session_id}", response_model=ChatHistoryResponse)
-async def get_history(session_id: str) -> ChatHistoryResponse:
+async def get_history(session_id: str, username: str = Depends(require_auth)) -> ChatHistoryResponse:
     return ChatService().history(session_id)
 
 
@@ -82,6 +83,8 @@ _CHAT_PAGE = """<!doctype html>
     .chat header h2 { margin: 0; font-size: 18px; font-weight: 650; }
     .chat header .status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
     .chat header .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px rgba(52,199,123,.18); }
+    .chat header #logout { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 14px; cursor: pointer; font: inherit; font-size: 13px; }
+    .chat header #logout:hover { border-color: var(--accent); color: var(--accent); }
 
     #messages { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
     .empty { color: var(--muted); text-align: center; margin: auto; max-width: 360px; }
@@ -154,6 +157,7 @@ _CHAT_PAGE = """<!doctype html>
     <header>
       <h2>Consulta técnica</h2>
       <div class="status"><span class="dot"></span> Manuais indexados</div>
+      <button id="logout" type="button">Sair</button>
     </header>
     <div id="messages" aria-live="polite">
       <div class="empty"><span class="glyph">🔧</span>Sua primeira pergunta começa aqui.<br>Procedimentos, componentes, torques e DTCs.</div>
@@ -289,6 +293,7 @@ form.addEventListener('submit', async event => {
         system: document.querySelector('#system').value || null
       })
     });
+    if (response.status === 401) { window.location.href = '/api/v1/auth/login'; return; }
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || 'Falha ao consultar os manuais');
     sessionId = data.session_id;
@@ -306,6 +311,11 @@ const modal = document.querySelector('#modal');
 modal.querySelector('.modal-close').addEventListener('click', closeModal);
 modal.addEventListener('click', ev => { if (ev.target === modal) closeModal(); });
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeModal(); });
+
+document.querySelector('#logout').addEventListener('click', async () => {
+  await fetch('/api/v1/auth/logout', { method: 'POST' });
+  window.location.href = '/api/v1/auth/login';
+});
 </script>
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Fonte do manual">
   <div class="modal-body">

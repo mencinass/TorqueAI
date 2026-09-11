@@ -63,6 +63,13 @@ class Settings(BaseSettings):
     NVIDIA_CHAT_MODEL: str = "deepseek-ai/deepseek-v4-pro-0813"
     NVIDIA_RATE_LIMIT_RPM: int = 40
 
+    # Authentication
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "changeme"
+    SESSION_TTL_SECONDS: int = 43200  # 12h
+    LOGIN_MAX_ATTEMPTS: int = 5
+    LOGIN_LOCKOUT_SECONDS: int = 60
+
     @model_validator(mode="after")
     def assemble_database_url(self) -> "Settings":
         """Build async PostgreSQL URL if not explicitly provided."""

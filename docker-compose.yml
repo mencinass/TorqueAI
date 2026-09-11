@@ -97,6 +97,8 @@ services:
       CHAT_MAX_TOKENS: ${CHAT_MAX_TOKENS:-800}
       AUTO_INGEST_ENABLED: ${AUTO_INGEST_ENABLED:-false}
       AUTO_INGEST_FORCE: ${AUTO_INGEST_FORCE:-false}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"

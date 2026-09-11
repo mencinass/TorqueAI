@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db
+from app.api.deps import get_db, require_auth
 from app.models.document import TechnicalDocument
 
 router = APIRouter()
@@ -123,6 +123,7 @@ async def start_ingestion(
     background_tasks: BackgroundTasks,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    username: str = Depends(require_auth),
 ) -> IngestionStartResponse:
     tracker = request.app.state.job_tracker
 
@@ -171,7 +172,7 @@ async def start_ingestion(
     response_model=JobStatusResponse,
     summary="Get ingestion job status",
 )
-async def get_job(job_id: str, request: Request) -> JobStatusResponse:
+async def get_job(job_id: str, request: Request, username: str = Depends(require_auth)) -> JobStatusResponse:
     tracker = request.app.state.job_tracker
     job = await tracker.get(job_id)
     if job is None:
@@ -184,7 +185,7 @@ async def get_job(job_id: str, request: Request) -> JobStatusResponse:
     response_model=List[JobStatusResponse],
     summary="List all ingestion jobs",
 )
-async def list_jobs(request: Request) -> List[JobStatusResponse]:
+async def list_jobs(request: Request, username: str = Depends(require_auth)) -> List[JobStatusResponse]:
     tracker = request.app.state.job_tracker
     jobs = await tracker.list_all()
     return [JobStatusResponse(**j.to_dict()) for j in jobs]

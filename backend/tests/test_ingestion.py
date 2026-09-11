@@ -335,6 +335,7 @@ def app_with_state():
     """Return a FastAPI test app with pre-initialised ingestion state."""
     from fastapi import FastAPI
     from app.api.v1.endpoints.ingestion import router
+    from app.api.deps import require_auth
 
     test_app = FastAPI()
     tracker = JobTracker()
@@ -344,6 +345,8 @@ def app_with_state():
         embedding_provider=MockEmbeddingProvider(dim=128),
     )
     test_app.include_router(router)
+    # Auth is tested separately; bypass require_auth for these endpoint tests.
+    test_app.dependency_overrides[require_auth] = lambda: "admin"
     return test_app
 
 

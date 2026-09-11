@@ -62,20 +62,26 @@ async def test_chat_returns_no_evidence_without_results():
 
 
 @pytest.mark.asyncio
-async def test_chat_page_is_available(async_client: httpx.AsyncClient):
-    response = await async_client.get("/api/v1/chat/")
+async def test_chat_page_is_available(auth_client: httpx.AsyncClient):
+    response = await auth_client.get("/api/v1/chat/")
     assert response.status_code == 200
     assert "TorqueAI" in response.text
     assert "Consulta técnica" in response.text
 
 
 @pytest.mark.asyncio
-async def test_chat_returns_503_when_ollama_is_unavailable(async_client: httpx.AsyncClient, monkeypatch):
+async def test_chat_requires_auth(async_client: httpx.AsyncClient):
+    response = await async_client.get("/api/v1/chat/")
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_chat_returns_503_when_ollama_is_unavailable(auth_client: httpx.AsyncClient, monkeypatch):
     monkeypatch.setattr(
         "app.api.v1.endpoints.chat.ChatService.answer",
         AsyncMock(side_effect=ChatGenerationError("internal details")),
     )
-    response = await async_client.post(
+    response = await auth_client.post(
         "/api/v1/chat/messages",
         json={"question": "Qual o procedimento?"},
     )
