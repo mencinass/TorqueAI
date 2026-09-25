@@ -80,7 +80,7 @@ shell:
 
 ollama-pull:
 	@echo "==> Baixando modelos no contêiner ollama..."
-	$(COMPOSE) exec ollama ollama pull qwen2.5:7b
+	$(COMPOSE) exec ollama ollama pull $$(grep -E '^CHAT_MODEL=' .env | cut -d= -f2 | tr -d '"' || echo qwen2.5:7b)
 	$(COMPOSE) exec ollama ollama pull bge-m3
 
 
