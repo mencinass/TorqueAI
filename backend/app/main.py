@@ -11,7 +11,9 @@ from app.core.logging import get_logger
 from app.database.init_db import init_database
 from app.database.session import engine
 from app.services.auto_ingestion_service import ingest_local_documents
+from app.services.general_ingestion_service import ingest_general_documents
 from app.rag.ingestion_pipeline import IngestionPipeline, JobTracker
+from app.rag.qdrant_manager import QdrantManager
 from app.schemas.health import HealthCheckResponse
 from app.services.qdrant_service import close_qdrant_client
 
@@ -29,13 +31,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize in-memory ingestion job tracker and pipeline (shared via app.state)
     app.state.job_tracker = JobTracker()
     app.state.ingestion_pipeline = IngestionPipeline(tracker=app.state.job_tracker)
+    app.state.general_ingestion_pipeline = IngestionPipeline(
+        tracker=app.state.job_tracker,
+        qdrant_manager=QdrantManager(collection=settings.GENERAL_MECHANICS_COLLECTION),
+    )
     app.state.auto_ingestion_task = asyncio.create_task(
         ingest_local_documents(app.state.job_tracker, app.state.ingestion_pipeline)
+    )
+    app.state.general_ingestion_task = asyncio.create_task(
+        ingest_general_documents(app.state.job_tracker, app.state.general_ingestion_pipeline)
     )
     yield
     logger.info("Initiating graceful shutdown sequence...")
     app.state.auto_ingestion_task.cancel()
-    await asyncio.gather(app.state.auto_ingestion_task, return_exceptions=True)
+    app.state.general_ingestion_task.cancel()
+    await asyncio.gather(
+        app.state.auto_ingestion_task,
+        app.state.general_ingestion_task,
+        return_exceptions=True,
+    )
     # Dispose SQLAlchemy connection pool
     await engine.dispose()
     # Close Qdrant HTTP/gRPC client

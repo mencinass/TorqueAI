@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     QDRANT_GRPC_PORT: int = 6334
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_COLLECTION: str = "automotive_manuals"
+    GENERAL_MECHANICS_COLLECTION: str = "general_mechanics"
 
     # Embedding configuration
     EMBEDDING_PROVIDER: str = "ollama"  # ollama | openai | mock
@@ -45,7 +46,7 @@ class Settings(BaseSettings):
 
     # Local chat generation
     CHAT_PROVIDER: str = "ollama"  # ollama | nvidia | extractive
-    CHAT_MODEL: str = "qwen2.5:7b"
+    CHAT_MODEL: str = "qwen3.8:latest"
     CHAT_TIMEOUT: float = 120.0
     CHAT_TEMPERATURE: float = 0.2
     CHAT_MAX_TOKENS: int = 800

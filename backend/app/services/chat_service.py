@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 
-from app.agents.ollama import NvidiaChatProvider, OllamaChatProvider, get_chat_provider
+from app.agents.ollama import get_chat_provider
 from app.agents.prompt import build_grounded_messages
 from app.core.config import settings
 from app.rag.embeddings import BaseEmbeddingProvider, get_embedding_provider
@@ -12,8 +12,29 @@ from app.rag.qdrant_manager import QdrantManager
 from app.schemas.chat import ChatCitation, ChatHistoryResponse, ChatMessage, ChatRequest, ChatResponse
 
 
+class VectorSearch(Protocol):
+    """Structural type for anything that can search chunks (QdrantManager or test doubles)."""
+
+    async def search_chunks(
+        self,
+        vector: List[float],
+        generation_code: Optional[str] = None,
+        system: Optional[str] = None,
+        limit: int = 5,
+    ) -> List[Any]: ...
+
+
+class ChatGeneration(Protocol):
+    """Structural type for chat providers (Ollama/NVIDIA or test doubles)."""
+
+    async def generate(self, messages: List[Dict[str, str]]) -> str: ...
+
+
 class ChatService:
-    """Retrieval-first chat service with an in-memory session history."""
+    """Retrieval-first chat service with an in-memory session history.
+
+    Queries two Qdrant collections: automotive_manuals and general_mechanics.
+    """
 
     NO_EVIDENCE = (
         "Nao encontrei evidencia suficiente nos manuais indexados para responder "
@@ -23,23 +44,40 @@ class ChatService:
 
     def __init__(
         self,
-        qdrant: Optional[QdrantManager] = None,
+        qdrant: Optional[VectorSearch] = None,
+        general_qdrant: Optional[VectorSearch] = None,
         embeddings: Optional[BaseEmbeddingProvider] = None,
-        chat_provider: Optional[OllamaChatProvider | NvidiaChatProvider] = None,
+        chat_provider: Optional[ChatGeneration] = None,
     ) -> None:
-        self.qdrant = qdrant or QdrantManager()
+        self.automotive_qdrant: VectorSearch = qdrant or QdrantManager()
+        self.general_qdrant: VectorSearch = general_qdrant or QdrantManager(
+            collection=settings.GENERAL_MECHANICS_COLLECTION
+        )
         self.embeddings = embeddings or get_embedding_provider()
-        self.chat_provider = chat_provider if chat_provider is not None else get_chat_provider()
+        self.chat_provider: Optional[ChatGeneration] = chat_provider if chat_provider is not None else get_chat_provider()
+
 
     async def answer(self, request: ChatRequest) -> ChatResponse:
         session_id = request.session_id or str(uuid.uuid4())
         query_vector = (await self.embeddings.embed([request.question]))[0]
-        results = await self.qdrant.search_chunks(
+        # Search both collections
+        automotive_results = await self.automotive_qdrant.search_chunks(
             query_vector,
             generation_code=request.generation_code,
             system=request.system,
             limit=request.top_k,
         )
+        general_results = await self.general_qdrant.search_chunks(
+            query_vector,
+            # No filters for general collection
+            limit=request.top_k,
+        )
+        # Combine results from both layers, best score first, capped at top_k.
+        results = sorted(
+            automotive_results + general_results,
+            key=lambda result: float(getattr(result, "score", 0.0)),
+            reverse=True,
+        )[: max(request.top_k, 1)]
         supported_results = [
             result
             for result in results
